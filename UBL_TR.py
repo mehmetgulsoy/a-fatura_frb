@@ -1,6 +1,5 @@
-from lxml import etree
+from lxml import etree 
 import datetime
-import config
 
 class EUBL21:
     """E-arşiv fatura UBL 2.1"""
@@ -13,11 +12,12 @@ class EUBL21:
         'cbc':'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2', 
         'ext':'urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2',
     }
+
+    def_para_brm = None
     
     def __init__(self, **kwargs):        
         CopyIndicator    = kwargs.get('CopyIndicator','false') 
-        Notes            = kwargs.get('Notes',[])
-        LineCountNumeric = str(len(kwargs.get('InvoiceLines'))) if  kwargs.get('InvoiceLines') else '0'
+        Notes            = kwargs.get('Notes',[])        
         IssueDate =  kwargs.get('IssueDate', datetime.datetime.now().strftime('%Y-%m-%d'))  
         IssueTime =  kwargs.get('IssueTime',datetime.datetime.now().strftime('%H:%M:%S.%f%z'))    
         AdditionalDocumentReferences = kwargs.get('AdditionalDocumentReferences',[])
@@ -26,7 +26,10 @@ class EUBL21:
         AccountingCustomerParty = kwargs.get('AccountingCustomerParty',{}) 
         TaxtTotal       =  kwargs.get('TaxtTotal',{})
         AllowanceCharge =  kwargs.get('AllowanceCharge',{})
-
+        LegalMonetaryTotal = kwargs.get('LegalMonetaryTotal',{})
+        InvoiceLines = kwargs.get('InvoiceLines',[])
+        LineCountNumeric = str(len(InvoiceLines)) 
+        self.__class__.def_para_brm = kwargs.get('DocumentCurrencyCode','TRY')       
         self._Invoice = etree.Element('{urn:oasis:names:specification:ubl:schema:xsd:Invoice-2}Invoice', 
              nsmap=self.namespacemap)
         self._Invoice.set('{http://www.w3.org/2001/XMLSchema-instance}schemaLocation','urn:oasis:names:specification:ubl:schema:xsd:Invoice-2 ../xsdrt/maindoc/UBL-Invoice-2.1.xsd')               
@@ -43,7 +46,7 @@ class EUBL21:
         self.SubElement(self._Invoice, 'cbc', 'IssueTime').text =  IssueTime
         self.SubElement(self._Invoice, 'cbc', 'InvoiceTypeCode').text =  kwargs.get('InvoiceTypeCode')
         for Note in Notes   : self.SubElement(self._Invoice, 'cbc', 'Note').text = Note
-        self.SubElement(self._Invoice, 'cbc', 'DocumentCurrencyCode').text = kwargs.get('DocumentCurrencyCode')
+        self.SubElement(self._Invoice, 'cbc', 'DocumentCurrencyCode').text = self.def_para_brm 
         self.SubElement(self._Invoice, 'cbc', 'LineCountNumeric').text = LineCountNumeric
         for AdditionalDocumentReference in AdditionalDocumentReferences: \
             self._Invoice.append(self.AdditionalDocumentReference(**AdditionalDocumentReference))
@@ -54,8 +57,13 @@ class EUBL21:
         self.SubElement(self._Invoice, 'cac', 'AccountingCustomerParty').append(self.Party(**AccountingCustomerParty))
         self._Invoice.append(self.AllowanceCharge(**AllowanceCharge))
         self._Invoice.append(self.TaxtTotal(**TaxtTotal))
+        self._Invoice.append(self.LegalMonetaryTotal(**LegalMonetaryTotal))
+        for InvoiceLine in InvoiceLines: \
+            self._Invoice.append(self.InvoiceLine(**InvoiceLine))
+    
       
-        
+    def get_invoice(self):
+        return etree.tostring(self._Invoice, encoding='utf8')
     
     @classmethod
     def SubElement(cls,parent, prefix, tag ):
@@ -167,13 +175,13 @@ class EUBL21:
         cls.SubElement(AllowanceCharge, 'cbc', 'ChargeIndicator').text = kwargs.get('ChargeIndicator')
         cls.SubElement(AllowanceCharge, 'cbc', 'AllowanceChargeReason').text = kwargs.get('AllowanceChargeReason')
         Amount = cls.SubElement(AllowanceCharge, 'cbc', 'Amount')
-        Amount.text = kwargs.get('Amount') 
-        Amount.set('currencyID',kwargs.get('currencyID'))             
+        Amount.text = kwargs.get('Amount')         
+        Amount.set('currencyID',kwargs.get('currencyID',cls.def_para_brm))             
         return AllowanceCharge 
 
     @classmethod
     def TaxScheme(cls, **kwargs):
-        TaxScheme      = cls.Element('cac', 'Party')
+        TaxScheme      = cls.Element('cac', 'TaxScheme')
         cls.SubElement(TaxScheme, 'cbc', 'ID').text = kwargs.get('ID')
         cls.SubElement(TaxScheme, 'cbc', 'Name').text = kwargs.get('Name')
         cls.SubElement(TaxScheme, 'cbc', 'TaxTypeCode').text = kwargs.get('TaxTypeCode')              
@@ -183,27 +191,38 @@ class EUBL21:
     def TaxCategory(cls, **kwargs):
         TaxCategory      = cls.Element('cac', 'TaxCategory')
         cls.SubElement(TaxCategory, 'cbc', 'Name').text = kwargs.get('Name')
-        cls.SubElement(TaxCategory, 'cbc', 'TaxExemptionReasonCode').text = kwargs.get('TaxExemptionReasonCode')
-        cls.SubElement(TaxCategory, 'cbc', 'TaxExemptionReason').text = kwargs.get('TaxExemptionReason')
+        if kwargs.get('TaxExemptionReasonCode'):
+            cls.SubElement(TaxCategory, 'cbc', 'TaxExemptionReasonCode').text = kwargs.get('TaxExemptionReasonCode')
+        if kwargs.get('TaxExemptionReason'):
+            cls.SubElement(TaxCategory, 'cbc', 'TaxExemptionReason').text = kwargs.get('TaxExemptionReason')
         TaxCategory.append(cls.TaxScheme(**kwargs.get('TaxScheme',{})))             
         return TaxCategory   
 
     @classmethod
     def TaxSubtotal(cls, **kwargs):
         TaxSubtotal      = cls.Element('cac', 'TaxSubtotal')
-        cls.SubElement(TaxSubtotal, 'cbc', 'TaxableAmount').text = kwargs.get('TaxableAmount')
-        cls.SubElement(TaxSubtotal, 'cbc', 'TaxAmount').text = kwargs.get('TaxAmount')
+        TaxableAmount = cls.SubElement(TaxSubtotal, 'cbc', 'TaxableAmount')
+        TaxAmount = cls.SubElement(TaxSubtotal, 'cbc', 'TaxAmount')
         cls.SubElement(TaxSubtotal, 'cbc', 'CalculationSequenceNumeric').text = kwargs.get('CalculationSequenceNumeric')
         cls.SubElement(TaxSubtotal, 'cbc', 'Percent').text = kwargs.get('Percent')
-        cls.SubElement(TaxSubtotal, 'cbc', 'BaseUnitMeasure').text = kwargs.get('BaseUnitMeasure')
-        cls.SubElement(TaxSubtotal, 'cbc', 'PerUnitAmount').text = kwargs.get('PerUnitAmount')
+        if kwargs.get('BaseUnitMeasure'):
+            cls.SubElement(TaxSubtotal, 'cbc', 'BaseUnitMeasure').text = kwargs.get('BaseUnitMeasure')
+        if kwargs.get('PerUnitAmount'):
+            cls.SubElement(TaxSubtotal, 'cbc', 'PerUnitAmount').text = kwargs.get('PerUnitAmount')
+        
+        TaxableAmount.text = kwargs.get('TaxableAmount')
+        TaxableAmount.set('currencyID', kwargs.get('currencyID',cls.def_para_brm)) 
+        TaxAmount.text = kwargs.get('TaxAmount')
+        TaxAmount.set('currencyID', kwargs.get('currencyID',cls.def_para_brm)) 
         TaxSubtotal.append(cls.TaxCategory(**kwargs.get('TaxCategory',{}))) 
         return TaxSubtotal
 
     @classmethod
     def TaxtTotal(cls, **kwargs):
-        TaxtTotal      = cls.Element('cac', 'TaxtTotal')
-        cls.SubElement(TaxtTotal, 'cbc', 'TaxAmount').text = kwargs.get('TaxAmount')
+        TaxtTotal      = cls.Element('cac', 'TaxTotal')
+        TaxAmount = cls.SubElement(TaxtTotal, 'cbc', 'TaxAmount')
+        TaxAmount.text = kwargs.get('TaxAmount')         
+        TaxAmount.set('currencyID',kwargs.get('currencyID',cls.def_para_brm)) 
         TaxtTotal.append(cls.TaxSubtotal(**kwargs.get('TaxSubtotal',{})))                     
         return TaxtTotal 
 
@@ -222,20 +241,21 @@ class EUBL21:
         AllowanceTotalAmount.text = kwargs.get('AllowanceTotalAmount') 
         PayableAmount.text = kwargs.get('PayableAmount')         
         
-        LineExtensionAmount.set('currencyID',kwargs.get('currencyID'))             
-        TaxExclusiveAmount.set('currencyID',kwargs.get('currencyID'))
-        TaxInclusiveAmount.set('currencyID',kwargs.get('currencyID')) 
-        AllowanceTotalAmount.set('currencyID',kwargs.get('currencyID')) 
-        PayableAmount.set('currencyID',kwargs.get('currencyID'))             
+       
+        LineExtensionAmount.set('currencyID',kwargs.get('currencyID',cls.def_para_brm))             
+        TaxExclusiveAmount.set('currencyID',kwargs.get('currencyID',cls.def_para_brm))
+        TaxInclusiveAmount.set('currencyID',kwargs.get('currencyID',cls.def_para_brm)) 
+        AllowanceTotalAmount.set('currencyID',kwargs.get('currencyID',cls.def_para_brm)) 
+        PayableAmount.set('currencyID',kwargs.get('currencyID',cls.def_para_brm))             
         return LegalMonetaryTotal
 
     @classmethod
     def Item(cls, **kwargs):
         Item  = cls.Element('cac', 'Item')
-        cls.SubElement(Description>, 'cbc', 'Description').text = kwargs.get('Description>')      
-        cls.SubElement(InvoiceLine, 'cbc', 'ID').text = kwargs.get('Name')      
-        cls.SubElement(InvoiceLine, 'cbc', 'BrandName').text = kwargs.get('BrandName')      
-        cls.SubElement(InvoiceLine, 'cbc', 'ModelName').text = kwargs.get('ModelName')      
+        cls.SubElement(Item, 'cbc', 'Description').text = kwargs.get('Description')      
+        cls.SubElement(Item, 'cbc', 'Name').text = kwargs.get('Name')      
+        cls.SubElement(Item, 'cbc', 'BrandName').text = kwargs.get('BrandName')      
+        cls.SubElement(Item, 'cbc', 'ModelName').text = kwargs.get('ModelName')      
         return Item  
 
     @classmethod
@@ -244,111 +264,21 @@ class EUBL21:
         cls.SubElement(InvoiceLine, 'cbc', 'ID').text = kwargs.get('ID')    
         InvoicedQuantity = cls.SubElement(InvoiceLine, 'cbc', 'InvoicedQuantity')
         LineExtensionAmount = cls.SubElement(InvoiceLine, 'cbc', 'LineExtensionAmount')
-        InvoiceLine.append(cls.AllowanceCharge(**kwargs.get('AllowanceCharge',{})))
-        InvoiceLine.append(cls.TaxtTotal(**kwargs.get('TaxtTotal',{})))
+        InvoicedQuantity.text = kwargs.get('InvoicedQuantity') 
+        InvoicedQuantity.set('unitCode', kwargs.get('unitCode',''))
+        LineExtensionAmount.text = kwargs.get('LineExtensionAmount') 
+        LineExtensionAmount.set('currencyID', kwargs.get('currencyID',cls.def_para_brm))
+        if kwargs.get('AllowanceCharge'):
+            InvoiceLine.append(cls.AllowanceCharge(**kwargs.get('AllowanceCharge',{})))
+        if kwargs.get('TaxtTotal'):
+            InvoiceLine.append(cls.TaxtTotal(**kwargs.get('TaxtTotal',{})))
+        InvoiceLine.append(cls.Item(**kwargs.get('Item',{})))
+        Price = cls.SubElement(InvoiceLine, 'cac', 'Price') 
+        PriceAmount = cls.SubElement(Price, 'cbc', 'PriceAmount')
+        PriceAmount.text = kwargs.get('PriceAmount')
+        PriceAmount.set('currencyID', kwargs.get('currencyID', cls.def_para_brm) )
         return InvoiceLine                
 
     def __str__(self):
         return etree.tostring(self._Invoice, pretty_print=True, encoding='utf8').decode('utf8')    
-
-data = {
-    'ID':'KBN2019000000001',
-    'UUID': '3ad35815-86a7-445a-8aa0-5486092964bd', 
-    'InvoiceTypeCode': 'SATIS',
-    'IssueDate': datetime.datetime.now().strftime('%Y-%m-%d'),
-    'IssueTime': datetime.datetime.now().strftime('%H:%M:%S.%f%z'), 
-    'InvoiceLines' : [{'part' : '123456',}],
-    'Notes' : ['DENEME','DENEME2'],
-    'DocumentCurrencyCode' : 'TRY',
-    'AdditionalDocumentReferences': [{
-        'ID' : '0100',
-        'IssueDate' : '2020-01-20',
-        'DocumentTypeCode': 'OUTPUT_TYPE'
-        },{
-        'ID' : 'ELEKTRONIK',
-        'IssueDate' : '2020-01-20',
-        'DocumentTypeCode': 'EREPSENDT'
-        },    
-    ],
-    'Signatures' : [{
-        'ID' : '3880718497',
-        'WebsiteURI' : 'www.fitsolutions.com.tr',
-        'Name' :'FIT DANISMANLIK VE TEKNOLOJI BILISIM HIZMETLERI A.S.',
-        'PostalAddress' : {
-            'Room' : '45',
-            'StreetName': 'Öz Sokak',
-            'BuildingName' : 'Gold Plaza',
-            'BuildingNumber':'19',
-            'CitySubdivisionName' : 'Altayçesme Mahellesi',
-            'CityName' : 'ISTANBUL',
-            'PostalZone' : '34843',
-            'Region' : 'Marmara',
-            'Country' : 'TÜRKİYE'
-        },
-        'Contact' : {
-            'Telephone' : '0(216) 445 93 79',
-            'Telefax' : '0(216) 445 92 87',
-            'ElectronicMail' : 'muhasebe@fitcons.com',
-        }
-    }],
-    'AccountingSupplierParty': {
-        'WebsiteURI': 'www.alelma.com.tr',
-        'ID' : '0510294989',
-        'Name': 'ALELMA ELEKTRONİK PAZARLAMA VE SERVİS HİZMETLERİ TİC.LTD.ŞTİ',
-        'PostalAddress' : {
-            'Room' :'A',
-            'StreetName' : 'ILGAZ',
-            'BuildingNumber' : '37',
-            'CitySubdivisionName' :'KARTAL',
-            'CityName':'ISTANBUL',
-            'PostalZone':'34600',
-            'District':'ESENTEPE',
-            'Country' :'TÜRKİYE',
-        },
-        'PartyTaxScheme' : {
-            'Name' : 'İSTANBUL',
-            'TaxTypeCode' : '34000'    
-        }
-    },
-    'AccountingCustomerParty': {        
-        'ID' : '31414819674',   
-        'PostalAddress' : {
-            'Room' :'A',
-            'StreetName' : 'ILGAZ',
-            'BuildingNumber' : '37',
-            'CitySubdivisionName' :'KARTAL',
-            'CityName':'ISTANBUL',
-            'PostalZone':'34600',
-            'District':'ELMALI',
-            'Country' :'TÜRKİYE',
-        },
-        'PartyTaxScheme' : {
-            'Name' : 'ANADOLU KURUMLAR VERGİ DAİRESİ BAŞ.',
-            'TaxTypeCode' : '34244'    
-        },
-        'Contact':{
-            'Telephone' : '0 (533) 390 78 09',
-            'ElectronicMail': 'mehmet@liman.com.tr',    
-        },
-        'Person' : {
-          'FirstName':'MEHMET', 
-          'FamilyName' : '.',           
-        }
-    },
-    'AllowanceCharge': {
-        'ChargeIndicator' : 'false',
-         'Amount' : '0',
-         'currencyID' :'TRY'   
-    }
-
-}
-
-
-
-ubl21 = EUBL21(**data)
- 
-
-
-#print(dir())
-
-print(ubl21)        
+    
