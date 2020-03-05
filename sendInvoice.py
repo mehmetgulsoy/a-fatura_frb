@@ -5,13 +5,14 @@ from zeep.transports import Transport
 import zipfile
 import io 
 import hashlib
+import config
+
+user , sifre, vk = config.foriba_test_api.values()
 
 session = Session()
-history = HistoryPlugin()
-
-
-client = Client('https://earsivwstest.fitbulut.com/ClientEArsivServicesPort.svc?singleWsdl',
-            plugins=[history],
+session.auth = HTTPBasicAuth(user , sifre)
+ 
+client = Client('https://earsivwstest.fitbulut.com/ClientEArsivServicesPort.svc?singleWsdl',          
             transport=Transport(session=session)) 
 
 uuid = '61dc8ace-00ae-40ad-a1e8-13d52f22c324'
@@ -30,7 +31,7 @@ ns0 = client.type_factory('ns0')
 
 params = ns1.CustomizationParam('BRANCH','default')
 output = ns0.ResponsiveOutput('XML')
-result = client.service.sendInvoice('0510294989','1111111111','XML',uuid + '.zip',hashed,binaryData,params,output)
+#result = client.service.sendInvoice(vk,'1111111111','XML',uuid + '.zip',hashed,binaryData,params,output)
 print(result)
 #print(history.last_sent)
 #print(history.last_received)

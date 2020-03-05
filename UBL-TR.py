@@ -1,5 +1,6 @@
 from lxml import etree
 import datetime
+import config
 
 class EUBL21:
     """E-arşiv fatura UBL 2.1"""
