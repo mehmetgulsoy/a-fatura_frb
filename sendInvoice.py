@@ -20,12 +20,11 @@ client = Client('ClientEArsivServicesPort.wsdl',
 uuid = '61765be6-f00a-4f27-97ae-c093c9fda14a'
 
 data = {
-    'ID':'KBN2019000000001',
-    'UUID': '3ad35815-86a7-445a-8aa0-5486092964bd', 
+    'ID':'KBN2019000000002',
+    'UUID': uuid, 
     'InvoiceTypeCode': 'SATIS',
     'IssueDate': datetime.datetime.now().strftime('%Y-%m-%d'),
-    'IssueTime': datetime.datetime.now().strftime('%H:%M:%S.%f%z'), 
-    'InvoiceLines' : [{'part' : '123456',}],
+    'IssueTime': datetime.datetime.now().strftime('%H:%M:%S.%f%z'),     
     'Notes' : ['DENEME','DENEME2'],
     'DocumentCurrencyCode' : 'TRY',
     'AdditionalDocumentReferences': [{
@@ -99,27 +98,27 @@ data = {
             'ElectronicMail': 'mehmet@liman.com.tr',    
         },
         'Person' : {
-          'FirstName':'MEHMET', 
-          'FamilyName' : '.',           
+            'FirstName':'MEHMET', 
+            'FamilyName' : '.',           
         }
     },
     'AllowanceCharge': {
         'ChargeIndicator' : 'false',
-         'Amount' : '0',      
+        'Amount' : '0',      
     },
     'TaxtTotal' : {
         'TaxAmount': '15',       
         'TaxSubtotal': {
             'TaxableAmount': '15',
             'TaxAmount' : '2.7',
-             'CalculationSequenceNumeric': '1',
-             'Percent': '18',
-             'TaxCategory': {
+            'CalculationSequenceNumeric': '1',
+            'Percent': '18',
+            'TaxCategory': {
                 'TaxScheme': {
                     'Name' : 'KDV',
                     'TaxTypeCode': '0015'   
                 }    
-             }
+            }
 
         }
 
@@ -141,9 +140,13 @@ data = {
             'Description': 'deneme',
         },
         'PriceAmount' : '15',
-    }]
-}
+        'AllowanceCharge': {
+            'ChargeIndicator' : 'false',
+            'Amount' : '0',      
+        },
 
+    }]
+    }
 xml = UBL_TR.EUBL21(**data).get_invoice()
  
 with zipfile.ZipFile(uuid + '.zip', 'w') as zf:
