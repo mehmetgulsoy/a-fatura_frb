@@ -8,13 +8,13 @@ from zeep.transports import Transport
 import zipfile
 import io 
 import os
+from uuid import uuid4
 from lxml import etree
 import datetime
-import hashlib
-from config import foriba_test_api
-from UBL_TR import EUBL21
-from lxml import etree 
+import hashlib 
+from UBL_TR import EUBL21 
 import config
+ 
 
 app = Flask(__name__)
 
@@ -27,12 +27,13 @@ client = Client('ClientEArsivServicesPort.wsdl',
 
 @app.route("/ping")
 def ping():
+    """Ping servisi"""
     now = datetime.now()
     return now.strftime("%A, %d %B, %Y at %X")
 
-
 @app.route("/user_lists")
 def get_user_list():
+    """E-Fatura müşteri listesini döner"""
     user_lists = []
     result = client.service.getUserList(vk)
 
@@ -46,9 +47,8 @@ def get_user_list():
         user_lists.append(elem.text)
     return jsonify(user_lists)
 
-
 @app.route("/fatura/<uuid:fatura_id>")
-def getInvoiceDocument(fatura_id):
+def getInvoiceDocument(fatura_id):    
     fat_id = str(fatura_id)
     try:
         result = client.service.getInvoiceDocument(fat_id, vk, None, 'PDF')        
@@ -61,10 +61,24 @@ def getInvoiceDocument(fatura_id):
         data = {'hata': e.message}
         return data, 404
 
+@app.route("/fatura_imzali/<uuid:fatura_id>")
+def getSignedInvoice(fatura_id):
+    fat_id = str(fatura_id)
+    try:
+        result = client.service.getSignedInvoice(fat_id, vk) 
+        response = make_response(result.binaryData)
+        response.headers['Content-Type'] = 'application/xml' 
+        response.headers['Content-Disposition'] = \
+            'inline; filename=%s.xml' % fat_id      
+        return response 
+    except Exception as e:
+        data = {'hata': e.message}
+        return data, 404
 
 @app.route('/fatura', methods=['POST'])
 def send_invoice():
-    uuid = 'f2340fc8-38a3-4543-9538-a5d4d45835c1'
+    uuid = str(uuid4())
+    uuid = 'bb9f16a1-f495-4989-9eb4-3af6f990baab'
     content = request.json
     data = {
         'ID':'KBN2019000000002',
@@ -206,15 +220,16 @@ def send_invoice():
     params = ns1.CustomizationParam('BRANCH','default')
     output = ns0.ResponsiveOutput('XML')
     output = None
-
-    result = client.service.sendInvoice(vk,'1111111111','XML',uuid + '.zip',hashed,binaryData,params,output) 
-    os.remove(uuid + '.zip')
-    return str(result)
-    
-    return {
-      'detay': result.Detail,
-      'sonuc': result.Result,
-      'ETTN' : result.UUID,
-      'fatura': result.invoiceNumber,
-      'cevap_kodu' : result.SuccesCode,
-      }
+    try:
+        result = client.service.sendInvoice(vk,'1111111111','XML',uuid + '.zip',hashed,binaryData,params,output) 
+        os.remove(uuid + '.zip')      
+        return {
+            'Detail': result.Detail,
+            'UUID':  result.preCheckErrorResults.preCheckError[0].UUID,
+            'InvoiceNumber': result.preCheckErrorResults.preCheckError[0].InvoiceNumber,   
+        }   
+    except Exception as e:
+        data = {'hata': e.message}
+        return data, 404
+ 
+ 
