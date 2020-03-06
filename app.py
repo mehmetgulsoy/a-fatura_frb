@@ -14,7 +14,7 @@ import datetime
 import hashlib 
 from UBL_TR import EUBL21 
 import config
- 
+from waitress import serve 
 
 app = Flask(__name__)
 
@@ -232,4 +232,8 @@ def send_invoice():
         data = {'hata': e.message}
         return data, 404
  
+if __name__ == "__main__":   
+   serve(app, host='0.0.0.0', port=8000)
+
+
  
