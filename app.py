@@ -15,11 +15,35 @@ import hashlib
 from UBL_TR import EUBL21 
 import config
 from waitress import serve 
+from requests.adapters import HTTPAdapter, Retry
+
+
+def requests_retry_session(
+        retries=5,
+        backoff_factor=0.3,
+        status_forcelist=(500, 502, 503, 504),
+        session=None,**kwargs):
+    session = Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+        **kwargs
+        )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
 
 app = Flask(__name__)
 
 user, sifre, vk = config.foriba_test_api.values()
-session = Session()
+#session = Session()
+
+session = requests_retry_session(method_whitelist=False)
 session.auth = HTTPBasicAuth(user, sifre)
 client = Client('ClientEArsivServicesPort.wsdl',
                 transport=Transport(session=session))
@@ -28,7 +52,7 @@ client = Client('ClientEArsivServicesPort.wsdl',
 @app.route("/ping")
 def ping():
     """Ping servisi"""
-    now = datetime.now()
+    now = datetime.datetime.now()
     return now.strftime("%A, %d %B, %Y at %X")
 
 @app.route("/user_lists")
@@ -257,4 +281,6 @@ if __name__ == "__main__":
    serve(app, host='0.0.0.0', port=8000)
 
 
- 
+ #https://stackoverflow.com/questions/58021412/how-do-i-get-retry-handling-with-python-zeep-im-using-a-requests-retry-session
+
+ #https://www.peterbe.com/plog/best-practice-with-retries-with-requests
