@@ -276,7 +276,16 @@ def send_invoice():
     except Exception as e:
         data = {'hata': str(e)}
         return data, 404
+
+@app.route('/fatura_test', methods=['POST'])
+def fatura_test():
+    content = request.get_json(silent=True) 
+    xml = str(EUBL21(**content))  
+    return xml
+  
+
  
+
 if __name__ == "__main__":   
    serve(app, host='0.0.0.0', port=8000)
 
