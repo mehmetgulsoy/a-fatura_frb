@@ -282,13 +282,12 @@ def fatura_test():
     content = request.get_json(silent=True) 
     xml = str(EUBL21(**content))  
     return xml
-  
-
  
-
-if __name__ == "__main__":   
-   serve(app, host='0.0.0.0', port=8000)
-
+if __name__ == "__main__": 
+    import logging
+    logging.basicConfig(filename='error.log',level=logging.ERROR)
+    #serve(app, host='0.0.0.0', port=8000,ssl_context='adhoc')
+    app.run(host='0.0.0.0', ssl_context='adhoc')
 
  #https://stackoverflow.com/questions/58021412/how-do-i-get-retry-handling-with-python-zeep-im-using-a-requests-retry-session
 
