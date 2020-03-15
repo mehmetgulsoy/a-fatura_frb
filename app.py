@@ -13,40 +13,23 @@ from lxml import etree
 import datetime
 import hashlib 
 from UBL_TR import EUBL21 
-import config
-from waitress import serve 
+import config 
 from requests.adapters import HTTPAdapter, Retry
-
-
-def requests_retry_session(
-        retries=5,
-        backoff_factor=0.3,
-        status_forcelist=(500, 502, 503, 504),
-        session=None,**kwargs):
-    session = Session()
-    retry = Retry(
-        total=retries,
-        read=retries,
-        connect=retries,
-        backoff_factor=backoff_factor,
-        status_forcelist=status_forcelist,
-        **kwargs
-        )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    return session
-
-
-app = Flask(__name__)
+import logging
+    
 
 user, sifre, vk = config.foriba_test_api.values()
-#session = Session()
 
-session = requests_retry_session(method_whitelist=False)
+app = Flask(__name__)
+logging.basicConfig(filename='error.log',level=logging.ERROR) 
+
+session = Session()
+retry = Retry(total=5, read=5, connect=5, backoff_factor=0.3, status_forcelist=(500, 502, 503, 504), method_whitelist=False)
+adapter = HTTPAdapter(max_retries=retry)
+session.mount('http://', adapter)
+session.mount('https://', adapter) 
 session.auth = HTTPBasicAuth(user, sifre)
-client = Client('ClientEArsivServicesPort.wsdl',
-                transport=Transport(session=session))
+client = Client('ClientEArsivServicesPort.wsdl', transport=Transport(session=session))
 
 
 @app.route("/ping")
@@ -100,156 +83,9 @@ def getSignedInvoice(fatura_id):
         return data, 404
 
 @app.route('/fatura', methods=['POST'])
-def send_invoice():
-    uuid = str(uuid4())
-    #uuid = 'bb9f16a1-f495-4989-9eb4-3af6f990baab'
-    content = request.json
-    data = {
-    'ID':'KBN2019000000002',
-    'UUID': uuid, 
-    'InvoiceTypeCode': 'SATIS',
-    'IssueDate': datetime.datetime.now().strftime('%Y-%m-%d'),
-    'IssueTime': datetime.datetime.now().strftime('%H:%M:%S.%f%z'),     
-    'Notes' : ['DENEME','DENEME2'],
-    'DocumentCurrencyCode' : 'TRY',
-    'AdditionalDocumentReferences': [{
-        'ID' : '0100',
-        'IssueDate' : '2020-01-20',
-        'DocumentTypeCode': 'OUTPUT_TYPE'
-        },{
-        'ID' : 'ELEKTRONIK',
-        'IssueDate' : '2020-01-20',
-        'DocumentTypeCode': 'EREPSENDT'
-        },    
-    ],
-    'Signatures' : [{
-        'ID' : '3880718497',
-        'WebsiteURI' : 'www.fitsolutions.com.tr',
-        'Name' :'FIT DANISMANLIK VE TEKNOLOJI BILISIM HIZMETLERI A.S.',
-        'PostalAddress' : {
-            'Room' : '45',
-            'StreetName': 'Öz Sokak',
-            'BuildingName' : 'Gold Plaza',
-            'BuildingNumber':'19',
-            'CitySubdivisionName' : 'Altayçesme Mahellesi',
-            'CityName' : 'ISTANBUL',
-            'PostalZone' : '34843',
-            'Region' : 'Marmara',
-            'Country' : 'TÜRKİYE'
-        },
-        'Contact' : {
-            'Telephone' : '0(216) 445 93 79',
-            'Telefax' : '0(216) 445 92 87',
-            'ElectronicMail' : 'muhasebe@fitcons.com',
-        }
-    }],
-    'AccountingSupplierParty': {
-        'WebsiteURI': 'www.alelma.com.tr',
-        'ID' : '0510294989',
-        'Name': 'ALELMA ELEKTRONİK PAZARLAMA VE SERVİS HİZMETLERİ TİC.LTD.ŞTİ',
-        'PostalAddress' : {
-            'Room' :'A',
-            'StreetName' : 'ILGAZ',
-            'BuildingNumber' : '37',
-            'CitySubdivisionName' :'KARTAL',
-            'CityName':'ISTANBUL',
-            'PostalZone':'34600',
-            'District':'ESENTEPE',
-            'Country' :'TÜRKİYE',
-        },
-        'PartyTaxScheme' : {
-            'Name' : 'İSTANBUL',
-            'TaxTypeCode' : '34000'    
-        }
-    },
-    'AccountingCustomerParty': {        
-        'ID' : '31414819674',   
-        'PostalAddress' : {
-            'Room' :'A',
-            'StreetName' : 'ILGAZ',
-            'BuildingNumber' : '37',
-            'CitySubdivisionName' :'KARTAL',
-            'CityName':'ISTANBUL',
-            'PostalZone':'34600',
-            'District':'ELMALI',
-            'Country' :'TÜRKİYE',
-        },
-        'PartyTaxScheme' : {
-            'Name' : 'ANADOLU KURUMLAR VERGİ DAİRESİ BAŞ.',
-            'TaxTypeCode' : '34244'    
-        },
-        'Contact':{
-            'Telephone' : '0 (533) 390 78 09',
-            'ElectronicMail': 'mehmet@liman.com.tr',    
-        },
-        'Person' : {
-            'FirstName':'MEHMET', 
-            'FamilyName' : '.',           
-        }
-    },
-    'AllowanceCharge': {
-        'ChargeIndicator' : 'false',
-        'Amount' : '0',      
-    },
-    'TaxtTotal' : {
-        'TaxAmount': '15',       
-        'TaxSubtotal': {
-            'TaxableAmount': '15',
-            'TaxAmount' : '2.7',
-            'CalculationSequenceNumeric': '1',
-            'Percent': '18',
-            'TaxCategory': {
-                'TaxScheme': {
-                    'Name' : 'KDV',
-                    'TaxTypeCode': '0015'   
-                }    
-            }
-
-        }
-
-    },
-    'LegalMonetaryTotal': {
-        'LineExtensionAmount': '15',
-        'TaxExclusiveAmount' : '15',
-        'TaxInclusiveAmount' : '17.7',
-        'AllowanceTotalAmount' : '10',
-        'PayableAmount' : '17.7',    
-    },
-    'InvoiceLines': [{
-        'ID': '1',
-        'InvoicedQuantity': '1',       
-        'LineExtensionAmount' : '15',        
-        'unitCode':'C62',
-        'Item' : {
-            'Name' : '40048',
-            'Description': 'deneme',
-        },
-        'PriceAmount' : '15',
-        'AllowanceCharge': {
-            'ChargeIndicator' : 'false',
-            'Amount' : '0',      
-        },
-        'TaxtTotal' : {
-            'TaxAmount': '15',       
-            'TaxSubtotal': {
-                'TaxableAmount': '15',
-                'TaxAmount' : '2.7',
-                'CalculationSequenceNumeric': '1',
-                'Percent': '18',
-                'TaxCategory': {
-                    'TaxScheme': {
-                        'Name' : 'KDV',
-                        'TaxTypeCode': '0015'   
-                    }    
-                }
-
-            }
-
-    }
-
-    }]
-    }
-    xml = EUBL21(**data).get_invoice()
+def send_invoice(): 
+    content = request.get_json(silent=true)
+    xml = EUBL21(**content).get_invoice()
     
     with zipfile.ZipFile(uuid + '.zip', 'w') as zf:
         zf.writestr(uuid + '.xml',xml)
@@ -278,17 +114,13 @@ def send_invoice():
         return data, 404
 
 @app.route('/fatura_test', methods=['POST'])
-def fatura_test():
+def fatura_test():    
     content = request.get_json(silent=True) 
     xml = str(EUBL21(**content))  
     return xml
- 
-if __name__ == "__main__": 
-    import logging
-    logging.basicConfig(filename='error.log',level=logging.ERROR)
-    #serve(app, host='0.0.0.0', port=8000,ssl_context='adhoc')
+
+
+if __name__ == "__main__":
+    # https://stackoverflow.com/questions/58261464/how-to-host-python-3-7-flask-application-on-windows-server 
     app.run(host='0.0.0.0', ssl_context='adhoc')
-
- #https://stackoverflow.com/questions/58021412/how-do-i-get-retry-handling-with-python-zeep-im-using-a-requests-retry-session
-
- #https://www.peterbe.com/plog/best-practice-with-retries-with-requests
+ 
